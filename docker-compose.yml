@@ -1,5 +1,6 @@
 version: "3.8"
 services:
+  # Proxy
   traefik:
     container_name: traefik
     image: traefik:latest
@@ -11,7 +12,7 @@ services:
       - "traefik.docker.network=mediacenter_net"
 
       # Main domain
-      - "traefik.http.routers.traefik.rule=Host(`$TRAEFIK_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.traefik.rule=Host(`$TRAEFIK_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.tls.certresolver=mytlschallenge"
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
@@ -35,6 +36,32 @@ services:
     networks:
       - media_net
 
+  # Ldap
+  openldap:
+    container_name: ldap
+    image: osixia/openldap:1.4.0
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    hostname: $DOMAIN
+    ports:
+      - 389:389
+      - 636:636
+    environment:
+      LDAP_ORGANISATION: $LDAP_ORGANISATION_NAME
+      LDAP_DOMAIN: $DOMAIN
+      LDAP_ADMIN_PASSWORD: $LDAP_ADMIN_PASSWORD
+      LDAP_CONFIG_PASSWORD: $LDAP_CONFIG_PASSWORD
+      LDAP_READONLY_USER: "true"
+      LDAP_READONLY_USER_USERNAME: "bind"
+      LDAP_READONLY_USER_PASSWORD: $LDAP_READONLY_USER_PASSWORD
+      LDAP_RFC2307BIS_SCHEMA: "false"
+    volumes:
+      - $APPDATA/openldap/config:/etc/ldap/slapd.d
+      - $APPDATA/openldap/data:/var/lib/ldap
+    networks:
+      - media_net
+
   # Databases
   mariadb:
     container_name: mariadb
@@ -53,6 +80,31 @@ services:
       - db_net
 
   # Utilities
+  phpldapadmin:
+    container_name: ldap-admin
+    image: osixia/phpldapadmin:latest
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.phpldapadmin.rule=Host(`$PHP_LDAP_ADMIN.$ADMIN_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.phpldapadmin.entrypoints=websecure"
+      - "traefik.http.routers.phpldapadmin.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.phpldapadmin.loadbalancer.server.port=80"
+      - "traefik.http.routers.phpldapadmin.service=phpldapadmin"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: openldap
+      # PHPLDAPADMIN_LDAP_HOSTS: "#PYTHON2BASH:[{'openldap': [{'login': [{'attr': 'cn'}]}]}]"
+      PHPLDAPADMIN_HTTPS: "false"
+      PHPLDAPADMIN_TRUST_PROXY_SSL: "true"
+    networks:
+      - media_net
+
   phpmyadmin:
     container_name: mariadb-admin
     image: phpmyadmin
@@ -62,7 +114,7 @@ services:
       - "traefik.docker.network=mediacenter_net"
 
       # Main domain
-      - "traefik.http.routers.phpmyadmin.rule=Host(`$PHPMYADMIN_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.phpmyadmin.rule=Host(`$PHP_MY_ADMIN_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
       - "traefik.http.routers.phpmyadmin.entrypoints=websecure"
       - "traefik.http.routers.phpmyadmin.tls.certresolver=mytlschallenge"
       - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
