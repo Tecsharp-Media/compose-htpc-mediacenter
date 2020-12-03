@@ -1,0 +1,115 @@
+version: "3.8"
+services:
+  traefik:
+    container_name: traefik
+    image: traefik:latest
+    restart: always
+    ports:
+      - 443:443
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.traefik.rule=Host(`$TRAEFIK_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik.service=api@internal"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    command:
+      - "--log.level=INFO"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.address=:80"
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
+      - "--certificatesresolvers.mytlschallenge.acme.email=$CLOUDFLARE_EMAIL"
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
+    volumes:
+      - $APPDATA/traefik:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - media_net
+
+  # Databases
+  mariadb:
+    container_name: mariadb
+    image: mariadb
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: $MARIADB_ROOT_PASSWORD
+    volumes:
+      - $PWD/config/mariadb/plugins.cnf:/etc/mysql/mariadb.conf.d/plugins.cnf
+      - $APPDATA/mariadb:/var/lib/mysql
+    networks:
+      - db_net
+
+  # Utilities
+  phpmyadmin:
+    container_name: mariadb-admin
+    image: phpmyadmin
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.phpmyadmin.rule=Host(`$PHPMYADMIN_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.phpmyadmin.entrypoints=websecure"
+      - "traefik.http.routers.phpmyadmin.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
+      - "traefik.http.routers.phpmyadmin.service=phpmyadmin"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PMA_HOST: mariadb
+    networks:
+      - media_net
+      - db_net
+
+  cloudflare-companion:
+    image: tiredofit/traefik-cloudflare-companion
+    container_name: cloudflare
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      CF_EMAIL: $CLOUDFLARE_EMAIL
+      CF_TOKEN: $CLOUDFLARE_API_TOKEN
+      TARGET_DOMAIN: $DOMAIN
+      DOMAIN1: $DOMAIN
+      DOMAIN1_ZONE_ID: $CLOUDFLARE_DOMAIN_ZONE_ID
+      DOMAIN1_PROXIED: "false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - media_net
+
+  watchtower:
+    image: v2tec/watchtower
+    container_name: watchtower
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    command:
+      - --label-enable
+      - --cleanup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - media_net
+
+networks:
+  db_net:
+    name: database_net
+  media_net:
+    name: mediacenter_net
