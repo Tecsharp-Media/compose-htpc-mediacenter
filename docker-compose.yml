@@ -45,6 +45,24 @@ services:
     networks:
       - media_net
 
+  errorpage:
+    container_name: error
+    image: guillaumebriday/traefik-custom-error-pages
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.errorpage.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.errorpage.entrypoints=websecure"
+      - "traefik.http.services.globalerrorpage.loadbalancer.server.port=80"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - media_net
+
   # User management and SSO
   authelia:
     depends_on:
@@ -252,6 +270,7 @@ services:
   #   networks:
   #     - media_net
 
+  # Currently not working with jellyfin?
   ombi:
     container_name: ombi
     image: hotio/ombi
