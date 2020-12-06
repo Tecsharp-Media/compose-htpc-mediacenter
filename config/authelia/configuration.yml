@@ -1,0 +1,80 @@
+###############################################################
+#                   Authelia configuration                    #
+###############################################################
+
+host: 0.0.0.0
+port: 9091
+log_level: debug
+default_redirection_url: https://web.tecsharp.com
+
+authentication_backend:
+  disable_reset_password: false
+  ldap:
+    implementation: custom
+    url: ldap://openldap:389
+    skip_verify: true
+    start_tls: false
+    base_dn: dc=tecsharp,dc=com
+    username_attribute: uid
+    additional_users_dn: ou=users
+    users_filter: ({username_attribute}={input})
+    additional_groups_dn: ou=groups
+    groups_filter: (member={dn})
+    group_name_attribute: cn
+    mail_attribute: mail
+    display_name_attribute: cn
+    user: cn=admin,dc=tecsharp,dc=com
+
+access_control:
+  default_policy: deny
+  rules:
+    # Bypass api's
+    - domain:
+        - "*.tecsharp.com/api"
+      policy: bypass
+
+    - domain:
+        - "*.tecsharp.com"
+      subject: "group:Administrator"
+      policy: one_factor
+
+    - domain:
+        - "*.admin.tecsharp.com"
+      subject: "group:User"
+      policy: deny
+
+    - domain:
+        - "*.media.tecsharp.com"
+      subject: "group:User"
+      policy: deny
+
+    - domain:
+        - "media.tecsharp.com"
+        - "web.tecsharp.com"
+        - "ombi.tecsharp.com"
+        - "emby.tecsharp.com"
+        - "jellyfin.tecsharp.com"
+      subject: "group:User"
+      policy: one_factor
+
+session:
+  name: authelia_session
+  expiration: 3600 # 1 hour
+  inactivity: 300 # 5 minutes
+  domain: tecsharp.com # Should match whatever your root protected domain is
+
+regulation:
+  max_retries: 3
+  find_time: 120
+  ban_time: 300
+
+storage:
+  mysql:
+    host: mariadb
+    port: 3306
+    database: authelia
+    username: authelia
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt

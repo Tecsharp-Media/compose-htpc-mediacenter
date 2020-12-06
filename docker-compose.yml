@@ -2,14 +2,20 @@ version: "3.8"
 services:
   # Proxy
   traefik:
+    depends_on:
+      - authelia
     container_name: traefik
     image: traefik:latest
     restart: always
     ports:
+      - 80:80
       - 443:443
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.traefik.middlewares=authelia@docker"
 
       # Main domain
       - "traefik.http.routers.traefik.rule=Host(`$TRAEFIK_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
@@ -27,6 +33,9 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
       - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
       - "--certificatesresolvers.mytlschallenge.acme.email=$CLOUDFLARE_EMAIL"
       - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
@@ -34,6 +43,78 @@ services:
       - $APPDATA/traefik:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
+      - media_net
+
+  # User management and SSO
+  authelia:
+    depends_on:
+      - openldap
+      - mariadb
+    container_name: authelia
+    image: authelia/authelia
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://$AUTHELIA_DOMAIN.$DOMAIN/"
+      - "traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email"
+
+      # Main domain
+      - "traefik.http.routers.authelia.rule=Host(`$AUTHELIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.authelia.entrypoints=websecure"
+      - "traefik.http.routers.authelia.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
+      - "traefik.http.routers.authelia.service=authelia"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      AUTHELIA_JWT_SECRET_FILE: /config/secrets/jwt
+      AUTHELIA_SESSION_SECRET_FILE: /config/secrets/session
+      AUTHELIA_STORAGE_MYSQL_PASSWORD_FILE: /config/secrets/mysql
+      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE: /config/secrets/ldap
+    volumes:
+      - $PWD/config/authelia/configuration.yml:/config/configuration.yml
+      - $PWD/config/authelia/secrets:/config/secrets
+    networks:
+      - db_net
+      - media_net
+
+  keycloak:
+    depends_on:
+      - openldap
+      - mariadb
+    container_name: keycloak
+    image: jboss/keycloak:latest
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.keycloak.rule=Host(`$KEYCLOAK_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+      - "traefik.http.routers.keycloak.service=keycloak"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      DB_VENDOR: mariadb
+      DB_ADDR: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: keycloak
+      DB_USER: $KEYCLOAK_DATABASE_USERNAME
+      DB_PASSWORD: $KEYCLOAK_DATABASE_PASSWORD
+      KEYCLOAK_USER: $KEYCLOAK_ADMIN_USERNAME
+      KEYCLOAK_PASSWORD: $KEYCLOAK_ADMIN_PASSWORD
+      PROXY_ADDRESS_FORWARDING: "true"
+    networks:
+      - db_net
       - media_net
 
   # Ldap
@@ -62,6 +143,329 @@ services:
     networks:
       - media_net
 
+  # Frontend apps
+  organizr:
+    container_name: organizr
+    image: organizr/organizr:latest
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.organizr.rule=Host(`$ORGANIZR_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.organizr.entrypoints=websecure"
+      - "traefik.http.routers.organizr.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.organizr.loadbalancer.server.port=80"
+      - "traefik.http.routers.organizr.service=organizr"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+      branch: v2-master
+    volumes:
+      - $APPDATA/organizr:/config
+    networks:
+      - media_net
+
+  emby:
+    container_name: emby
+    image: emby/embyserver:latest
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.emby.rule=Host(`$EMBY_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.emby.entrypoints=websecure"
+      - "traefik.http.routers.emby.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.emby.loadbalancer.server.port=8096"
+      - "traefik.http.routers.emby.service=emby"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      GID: $PGID
+      UID: $PUID
+    volumes:
+      - $APPDATA/emby:/config
+      - $MEDIA:/data/media
+    networks:
+      - media_net
+
+  jellyfin:
+    container_name: jellyfin
+    image: hotio/jellyfin
+    restart: always
+    privileged: true
+    # devices:
+    #   - /dev/dri/renderD128:/dev/dri/renderD128
+    #   - /dev/dri/card0:/dev/dri/card0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.jellyfin.rule=Host(`$JELLYFIN_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.jellyfin.entrypoints=websecure"
+      - "traefik.http.routers.jellyfin.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+      - "traefik.http.routers.jellyfin.service=jellyfin"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      TZ: $TIMEZONE
+      PGID: $PGID
+      PUID: $PUID
+      DEBUG: "no"
+    volumes:
+      - $APPDATA/jellyfin:/config
+      - $MEDIA:/data/media
+    networks:
+      - media_net
+
+  # airsonic:
+  #   container_name: airsonic
+  #   image: linuxserver/airsonic
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+
+  #     - "traefik.http.routers.airsonic.rule=Host(`$AIRSONIC_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.airsonic.entrypoints=websecure"
+  #     - "traefik.http.routers.airsonic.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.airsonic.loadbalancer.server.port=4040"
+
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     PGID: $PGID
+  #     PUID: $PUID
+  #     JAVA_OPTS: -Dserver.use-forward-headers=true
+  #   volumes:
+  #     - $APPDATA/airsonic:/config
+  #     - $MEDIA/music:/data/media/music
+  #   networks:
+  #     - media_net
+
+  ombi:
+    container_name: ombi
+    image: hotio/ombi
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.ombi.rule=Host(`$OMBI_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.ombi.entrypoints=websecure"
+      - "traefik.http.routers.ombi.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.ombi.loadbalancer.server.port=5000"
+      - "traefik.http.routers.ombi.service=ombi"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+    volumes:
+      - $APPDATA/ombi:/config
+    networks:
+      - media_net
+
+  # Indexers
+  sonarr:
+    container_name: sonarr
+    image: hotio/sonarr:nightly
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.sonarr.middlewares=authelia@docker"
+
+      # Main domain
+      - "traefik.http.routers.sonarr.rule=Host(`$SONARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.sonarr.entrypoints=websecure"
+      - "traefik.http.routers.sonarr.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+      - "traefik.http.routers.sonarr.service=sonarr"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+    volumes:
+      - $APPDATA/sonarr:/config
+      - $MEDIA/tvshows:/data/media/tv
+      - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+      - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
+    networks:
+      - media_net
+
+  radarr:
+    container_name: radarr
+    image: hotio/radarr:nightly
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.radarr.middlewares=authelia@docker"
+
+      # Main domain
+      - "traefik.http.routers.radarr.rule=Host(`$RADARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.radarr.entrypoints=websecure"
+      - "traefik.http.routers.radarr.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      - "traefik.http.routers.radarr.service=radarr"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+    volumes:
+      - $APPDATA/radarr:/config
+      - $MEDIA/movies:/data/media/movies
+      - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+      - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
+    networks:
+      - media_net
+
+  # lidarr:
+  #   container_name: lidarr
+  #   image: hotio/lidarr
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
+
+  #     # Main domain
+  #     - "traefik.http.routers.lidarr.rule=Host(`$LIDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.lidarr.entrypoints=websecure"
+  #     - "traefik.http.routers.lidarr.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
+  #     - "traefik.http.routers.lidarr.service=lidarr"
+
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     PGID: $PGID
+  #     PUID: $PUID
+  #   volumes:
+  #     - $APPDATA/lidarr:/config
+  #     - $MEDIA/music:/data/media/music
+  #     - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+  #     - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
+  #   networks:
+  #     - media_net
+
+  # # Api bypass not working yet
+  # jackett:
+  #   container_name: jackett
+  #   image: hotio/jackett
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
+
+  #     # Main domain
+  #     - "traefik.http.routers.jackett.rule=Host(`$JACKETT_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.jackett.entrypoints=websecure"
+  #     - "traefik.http.routers.jackett.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.jackett.loadbalancer.server.port=9117"
+  #     - "traefik.http.routers.jackett.service=jackett"
+
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     PGID: $PGID
+  #     PUID: $PUID
+  #   volumes:
+  #     - $APPDATA/jackett:/config
+  #   networks:
+  #     - media_net
+
+  # Downloaders
+  nzbget:
+    container_name: nzbget
+    image: hotio/nzbget
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.nzbget.middlewares=authelia@docker"
+
+      # Main domain
+      - "traefik.http.routers.nzbget.rule=Host(`$NZBGET_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.nzbget.entrypoints=websecure"
+      - "traefik.http.routers.nzbget.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
+      - "traefik.http.routers.nzbget.service=nzbget"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+      TZ: $TIMEZONE
+      DEBUG: "yes"
+    volumes:
+      - $APPDATA/nzbget:/config
+      - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+    networks:
+      - media_net
+
+  # deluge:
+  #   container_name: deluge
+  #   image: binhex/arch-delugevpn
+  #   restart: always
+  #   cap_add:
+  #     - NET_ADMIN
+  #   ports:
+  #     - "58846:58846"
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
+
+  #     - "traefik.http.routers.deluge.rule=Host(`$DELUGE_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.deluge.entrypoints=websecure"
+  #     - "traefik.http.routers.deluge.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.deluge.loadbalancer.server.port=8112"
+
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     PGID: $PGID
+  #     PUID: $PUID
+  #     VPN_ENABLED: "yes"
+  #     VPN_USER: $VPN_USERNAME
+  #     VPN_PASS: $VPN_PASSWORD
+  #     VPN_PROV: pia
+  #     STRICT_PORT_FORWARD: "yes"
+  #     ENABLE_PRIVOXY: "no"
+  #     LAN_NETWORK: 192.168.0.0/24
+  #     NAME_SERVERS: 209.222.18.222,84.200.69.80,37.235.1.174,1.1.1.1,209.222.18.218,37.235.1.177,84.200.70.40,1.0.0.1
+  #     DELUGE_DAEMON_LOG_LEVEL: debug
+  #     DELUGE_WEB_LOG_LEVEL: debug
+  #     DEBUG: "true"
+  #     UMASK: 000
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - $APPDATA/deluge:/config
+  #     - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
+  #   networks:
+  #     - media_net
+
   # Databases
   mariadb:
     container_name: mariadb
@@ -88,8 +492,11 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
 
+      # Auth middleware
+      - "traefik.http.routers.phpldapadmin.middlewares=authelia@docker"
+
       # Main domain
-      - "traefik.http.routers.phpldapadmin.rule=Host(`$PHP_LDAP_ADMIN.$ADMIN_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.phpldapadmin.rule=Host(`$PHP_LDAP_ADMIN_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
       - "traefik.http.routers.phpldapadmin.entrypoints=websecure"
       - "traefik.http.routers.phpldapadmin.tls.certresolver=mytlschallenge"
       - "traefik.http.services.phpldapadmin.loadbalancer.server.port=80"
@@ -112,6 +519,9 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.phpmyadmin.middlewares=authelia@docker"
 
       # Main domain
       - "traefik.http.routers.phpmyadmin.rule=Host(`$PHP_MY_ADMIN_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
