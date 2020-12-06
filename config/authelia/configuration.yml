@@ -28,9 +28,18 @@ authentication_backend:
 access_control:
   default_policy: deny
   rules:
+    # Bypass auth page
+    - domain: auth.tecsharp.com
+      policy: bypass
+
     # Bypass api's
     - domain:
-        - "*.tecsharp.com/api"
+        - "*.media.tecsharp.com"
+      resources:
+        - "^/api.*$"
+        - "^/xmlrpc.*$"
+        - "^/jsonrpc.*$"
+        - "^/jsonprpc.*$"
       policy: bypass
 
     - domain:
