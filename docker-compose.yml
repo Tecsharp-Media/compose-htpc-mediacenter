@@ -68,6 +68,7 @@ services:
     depends_on:
       - openldap
       - mariadb
+      - redis
     container_name: authelia
     image: authelia/authelia
     restart: always
@@ -147,9 +148,6 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     hostname: $DOMAIN
-    ports:
-      - 389:389
-      - 636:636
     environment:
       LDAP_ORGANISATION: $LDAP_ORGANISATION_NAME
       LDAP_DOMAIN: $DOMAIN
@@ -498,13 +496,22 @@ services:
     restart: always
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - 3306:3306
     environment:
       MYSQL_ROOT_PASSWORD: $MARIADB_ROOT_PASSWORD
     volumes:
       - $PWD/config/mariadb/plugins.cnf:/etc/mysql/mariadb.conf.d/plugins.cnf
       - $APPDATA/mariadb:/var/lib/mysql
+    networks:
+      - db_net
+
+  redis:
+    container_name: redis
+    image: redis
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - $APPDATA/redis:/data
     networks:
       - db_net
 
