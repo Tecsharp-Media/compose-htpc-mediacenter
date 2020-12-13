@@ -96,7 +96,11 @@ services:
       AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE: /config/secrets/ldap
     volumes:
       - $PWD/config/authelia/configuration.yml:/config/configuration.yml
-      - $PWD/config/authelia/secrets:/config/secrets
+      - $PWD/secrets/jwt:/config/secrets/jwt
+      - $PWD/secrets/ldap:/config/secrets/ldap
+      - $PWD/secrets/mysql:/config/secrets/mysql
+      - $PWD/secrets/session:/config/secrets/session
+      - $PWD/secrets/smtp:/config/secrets/smtp
     networks:
       - db_net
       - media_net
@@ -216,9 +220,8 @@ services:
 
   jellyfin:
     container_name: jellyfin
-    image: hotio/jellyfin
+    image: hotio/jellyfin:nightly-5959398
     restart: always
-    privileged: true
     # devices:
     #   - /dev/dri/renderD128:/dev/dri/renderD128
     #   - /dev/dri/card0:/dev/dri/card0
@@ -239,7 +242,7 @@ services:
       TZ: $TIMEZONE
       PGID: $PGID
       PUID: $PUID
-      DEBUG: "no"
+      DEBUG: "yes"
     volumes:
       - $APPDATA/jellyfin:/config
       - $MEDIA:/data/media
@@ -273,7 +276,7 @@ services:
   # Currently not working with jellyfin?
   ombi:
     container_name: ombi
-    image: hotio/ombi
+    image: hotio/ombi:testing-f82800e
     restart: always
     labels:
       - "traefik.enable=true"
@@ -291,10 +294,13 @@ services:
     environment:
       PGID: $PGID
       PUID: $PUID
+      DEBUG: "yes"
     volumes:
-      - $APPDATA/ombi:/config
+      - $PWD/secrets/database.json:/config/app/database.json
+    # - $APPDATA/ombi:/config
     networks:
       - media_net
+      - db_net
 
   # Indexers
   sonarr:
