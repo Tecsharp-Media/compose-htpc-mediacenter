@@ -3,7 +3,7 @@ services:
   # Proxy
   traefik:
     container_name: traefik
-    image: traefik:latest
+    image: traefik
     restart: always
     ports:
       - 80:80
@@ -65,7 +65,7 @@ services:
   # Frontend apps
   organizr:
     container_name: organizr
-    image: organizr/organizr:latest
+    image: organizr/organizr
     restart: always
     labels:
       - "traefik.enable=true"
@@ -91,7 +91,7 @@ services:
 
   emby:
     container_name: emby
-    image: emby/embyserver:latest
+    image: emby/embyserver
     restart: always
     labels:
       - "traefik.enable=true"
@@ -176,7 +176,7 @@ services:
   # Currently not working with jellyfin?
   ombi:
     container_name: ombi
-    image: hotio/ombi:latest
+    image: hotio/ombi
     restart: always
     labels:
       - "traefik.enable=true"
@@ -235,7 +235,7 @@ services:
 
   radarr:
     container_name: radarr
-    image: hotio/radarr:nightly
+    image: hotio/radarr
     restart: always
     labels:
       - "traefik.enable=true"
