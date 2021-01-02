@@ -89,6 +89,44 @@ services:
     networks:
       - media_net
 
+  plex:
+    container_name: plex
+    image: ghcr.io/linuxserver/plex
+    restart: always
+    ports:
+      - 32400:32400/tcp
+      - 3005:3005/tcp
+      - 8324:8324/tcp
+      - 32469:32469/tcp
+      - 1900:1900/udp
+      - 32410:32410/udp
+      - 32412:32412/udp
+      - 32413:32413/udp
+      - 32414:32414/udp
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Main domain
+      - "traefik.http.routers.plex.rule=Host(`$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.plex.entrypoints=websecure"
+      - "traefik.http.routers.plex.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.plex.loadbalancer.server.port=32400"
+      - "traefik.http.routers.plex.service=plex"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      TZ: $TIMEZONE
+      PGID: $PGID
+      PUID: $PUID
+      PLEX_CLAIM: $PLEX_CLAIM
+    volumes:
+      - $APPDATA/plex:/config
+      - $MEDIA:/data/media
+    networks:
+      - media_net
+
   emby:
     container_name: emby
     image: emby/embyserver
@@ -377,7 +415,7 @@ services:
       PGID: $PGID
       PUID: $PUID
       TZ: $TIMEZONE
-      DEBUG: "yes"
+      DEBUG: "no"
     volumes:
       - $APPDATA/nzbget:/config
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
@@ -425,6 +463,37 @@ services:
   #     - media_net
 
   # Utilities
+  tautulli:
+    container_name: tautulli
+    image: hotio/tautulli
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.tautulli.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+      # Main domain
+      - "traefik.http.routers.tautulli.rule=Host(`$TAUTULLI_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.tautulli.entrypoints=websecure"
+      - "traefik.http.routers.tautulli.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.tautulli.loadbalancer.server.port=8181"
+      - "traefik.http.routers.tautulli.service=tautulli"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      TZ: $TIMEZONE
+      PGID: $PGID
+      PUID: $PUID
+      DEBUG: "no"
+    volumes:
+      - $APPDATA/tautulli:/config
+    networks:
+      - media_net
+
   cloudflare-companion:
     image: tiredofit/traefik-cloudflare-companion
     container_name: cloudflare
