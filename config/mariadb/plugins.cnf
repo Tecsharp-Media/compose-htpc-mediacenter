@@ -1,3 +1,0 @@
-[mariadb]
-
-plugin_load_add = auth_pam

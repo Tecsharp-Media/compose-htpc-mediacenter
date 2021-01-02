@@ -2,8 +2,6 @@ version: "3.8"
 services:
   # Proxy
   traefik:
-    depends_on:
-      - authelia
     container_name: traefik
     image: traefik:latest
     restart: always
@@ -15,7 +13,8 @@ services:
       - "traefik.docker.network=mediacenter_net"
 
       # Auth middleware
-      - "traefik.http.routers.traefik.middlewares=authelia@docker"
+      - "traefik.http.routers.traefik.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
 
       # Main domain
       - "traefik.http.routers.traefik.rule=Host(`$TRAEFIK_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
@@ -60,106 +59,6 @@ services:
 
       # Watchtower automated update label
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - media_net
-
-  # User management and SSO
-  authelia:
-    depends_on:
-      - openldap
-      - mariadb
-      - redis
-    container_name: authelia
-    image: authelia/authelia
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
-
-      # Auth middleware
-      - "traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://$AUTHELIA_DOMAIN.$DOMAIN/"
-      - "traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true"
-      - "traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email"
-
-      # Main domain
-      - "traefik.http.routers.authelia.rule=Host(`$AUTHELIA_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.authelia.entrypoints=websecure"
-      - "traefik.http.routers.authelia.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-      - "traefik.http.routers.authelia.service=authelia"
-
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      AUTHELIA_JWT_SECRET_FILE: /config/secrets/jwt
-      AUTHELIA_SESSION_SECRET_FILE: /config/secrets/session
-      AUTHELIA_STORAGE_MYSQL_PASSWORD_FILE: /config/secrets/mysql
-      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE: /config/secrets/ldap
-    volumes:
-      - $PWD/config/authelia/configuration.yml:/config/configuration.yml
-      - $PWD/secrets/jwt:/config/secrets/jwt
-      - $PWD/secrets/ldap:/config/secrets/ldap
-      - $PWD/secrets/mysql:/config/secrets/mysql
-      - $PWD/secrets/session:/config/secrets/session
-      - $PWD/secrets/smtp:/config/secrets/smtp
-    networks:
-      - db_net
-      - media_net
-
-  keycloak:
-    depends_on:
-      - openldap
-      - mariadb
-    container_name: keycloak
-    image: jboss/keycloak:latest
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
-
-      # Main domain
-      - "traefik.http.routers.keycloak.rule=Host(`$KEYCLOAK_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.keycloak.entrypoints=websecure"
-      - "traefik.http.routers.keycloak.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
-      - "traefik.http.routers.keycloak.service=keycloak"
-
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      DB_VENDOR: mariadb
-      DB_ADDR: mariadb
-      DB_PORT: 3306
-      DB_DATABASE: keycloak
-      DB_USER: $KEYCLOAK_DATABASE_USERNAME
-      DB_PASSWORD: $KEYCLOAK_DATABASE_PASSWORD
-      KEYCLOAK_USER: $KEYCLOAK_ADMIN_USERNAME
-      KEYCLOAK_PASSWORD: $KEYCLOAK_ADMIN_PASSWORD
-      PROXY_ADDRESS_FORWARDING: "true"
-    networks:
-      - db_net
-      - media_net
-
-  # Ldap
-  openldap:
-    container_name: ldap
-    image: osixia/openldap:1.4.0
-    restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    hostname: $DOMAIN
-    environment:
-      LDAP_ORGANISATION: $LDAP_ORGANISATION_NAME
-      LDAP_DOMAIN: $DOMAIN
-      LDAP_ADMIN_PASSWORD: $LDAP_ADMIN_PASSWORD
-      LDAP_CONFIG_PASSWORD: $LDAP_CONFIG_PASSWORD
-      LDAP_READONLY_USER: "true"
-      LDAP_READONLY_USER_USERNAME: "bind"
-      LDAP_READONLY_USER_PASSWORD: $LDAP_READONLY_USER_PASSWORD
-      LDAP_RFC2307BIS_SCHEMA: "false"
-    volumes:
-      - $APPDATA/openldap/config:/etc/ldap/slapd.d
-      - $APPDATA/openldap/data:/var/lib/ldap
     networks:
       - media_net
 
@@ -218,8 +117,11 @@ services:
 
   jellyfin:
     container_name: jellyfin
-    image: hotio/jellyfin:nightly-5959398
+    image: hotio/jellyfin
+
     restart: always
+    ports:
+      - 8096:8096
     # devices:
     #   - /dev/dri/renderD128:/dev/dri/renderD128
     #   - /dev/dri/card0:/dev/dri/card0
@@ -274,7 +176,7 @@ services:
   # Currently not working with jellyfin?
   ombi:
     container_name: ombi
-    image: hotio/ombi:testing-f82800e
+    image: hotio/ombi:latest
     restart: always
     labels:
       - "traefik.enable=true"
@@ -294,11 +196,9 @@ services:
       PUID: $PUID
       DEBUG: "yes"
     volumes:
-      - $PWD/secrets/database.json:/config/app/database.json
-    # - $APPDATA/ombi:/config
+      - $APPDATA/ombi:/config
     networks:
       - media_net
-      - db_net
 
   # Indexers
   sonarr:
@@ -310,7 +210,8 @@ services:
       - "traefik.docker.network=mediacenter_net"
 
       # Auth middleware
-      - "traefik.http.routers.sonarr.middlewares=authelia@docker"
+      - "traefik.http.routers.sonarr.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
 
       # Main domain
       - "traefik.http.routers.sonarr.rule=Host(`$SONARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
@@ -341,7 +242,8 @@ services:
       - "traefik.docker.network=mediacenter_net"
 
       # Auth middleware
-      - "traefik.http.routers.radarr.middlewares=authelia@docker"
+      - "traefik.http.routers.radarr.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
 
       # Main domain
       - "traefik.http.routers.radarr.rule=Host(`$RADARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
@@ -417,6 +319,38 @@ services:
   #   networks:
   #     - media_net
 
+  hydra2:
+    container_name: hydra2
+    image: hotio/nzbhydra2
+    restart: always
+    ports:
+      - 5076:5076
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.hydra2.middlewares=auth-poweruser"
+      - "traefik.http.middlewares.auth-poweruser.forwardauth.address=http://organizr/api/v2/auth?group=3"
+
+      # Main domain
+      - "traefik.http.routers.hydra2.rule=Host(`$HYDRA2_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.hydra2.entrypoints=websecure"
+      - "traefik.http.routers.hydra2.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.hydra2.loadbalancer.server.port=5076"
+      - "traefik.http.routers.hydra2.service=hydra2"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+      DEBUG: "yes"
+    volumes:
+      - $APPDATA/hydra2:/config
+    networks:
+      - media_net
+
   # Downloaders
   nzbget:
     container_name: nzbget
@@ -427,7 +361,8 @@ services:
       - "traefik.docker.network=mediacenter_net"
 
       # Auth middleware
-      - "traefik.http.routers.nzbget.middlewares=authelia@docker"
+      - "traefik.http.routers.nzbget.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
 
       # Main domain
       - "traefik.http.routers.nzbget.rule=Host(`$NZBGET_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
@@ -489,87 +424,7 @@ services:
   #   networks:
   #     - media_net
 
-  # Databases
-  mariadb:
-    container_name: mariadb
-    image: mariadb
-    restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      MYSQL_ROOT_PASSWORD: $MARIADB_ROOT_PASSWORD
-    volumes:
-      - $PWD/config/mariadb/plugins.cnf:/etc/mysql/mariadb.conf.d/plugins.cnf
-      - $APPDATA/mariadb:/var/lib/mysql
-    networks:
-      - db_net
-
-  redis:
-    container_name: redis
-    image: redis
-    restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    volumes:
-      - $APPDATA/redis:/data
-    networks:
-      - db_net
-
   # Utilities
-  phpldapadmin:
-    container_name: ldap-admin
-    image: osixia/phpldapadmin:latest
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
-
-      # Auth middleware
-      - "traefik.http.routers.phpldapadmin.middlewares=authelia@docker"
-
-      # Main domain
-      - "traefik.http.routers.phpldapadmin.rule=Host(`$PHP_LDAP_ADMIN_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.phpldapadmin.entrypoints=websecure"
-      - "traefik.http.routers.phpldapadmin.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.phpldapadmin.loadbalancer.server.port=80"
-      - "traefik.http.routers.phpldapadmin.service=phpldapadmin"
-
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      PHPLDAPADMIN_LDAP_HOSTS: openldap
-      # PHPLDAPADMIN_LDAP_HOSTS: "#PYTHON2BASH:[{'openldap': [{'login': [{'attr': 'cn'}]}]}]"
-      PHPLDAPADMIN_HTTPS: "false"
-      PHPLDAPADMIN_TRUST_PROXY_SSL: "true"
-    networks:
-      - media_net
-
-  phpmyadmin:
-    container_name: mariadb-admin
-    image: phpmyadmin
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
-
-      # Auth middleware
-      - "traefik.http.routers.phpmyadmin.middlewares=authelia@docker"
-
-      # Main domain
-      - "traefik.http.routers.phpmyadmin.rule=Host(`$PHP_MY_ADMIN_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.phpmyadmin.entrypoints=websecure"
-      - "traefik.http.routers.phpmyadmin.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
-      - "traefik.http.routers.phpmyadmin.service=phpmyadmin"
-
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      PMA_HOST: mariadb
-    networks:
-      - media_net
-      - db_net
-
   cloudflare-companion:
     image: tiredofit/traefik-cloudflare-companion
     container_name: cloudflare
@@ -603,7 +458,5 @@ services:
       - media_net
 
 networks:
-  db_net:
-    name: database_net
   media_net:
     name: mediacenter_net
