@@ -444,7 +444,7 @@ services:
       - media_net
 
   watchtower:
-    image: v2tec/watchtower
+    image: containrrr/watchtower
     container_name: watchtower
     restart: always
     labels:
