@@ -462,7 +462,7 @@ services:
   #   networks:
   #     - media_net
 
-  # Utilities
+  # Metrics
   tautulli:
     container_name: tautulli
     image: hotio/tautulli
@@ -494,6 +494,90 @@ services:
     networks:
       - media_net
 
+  # kibana:
+  #   container_name: kibana
+  #   image: kibana:7.10.1
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
+
+  #     # Auth middleware
+  #     - "traefik.http.routers.kibana.middlewares=auth-admin"
+  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+  #     # Main domain
+  #     - "traefik.http.routers.kibana.rule=Host(`$KIBANA_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.kibana.entrypoints=websecure"
+  #     - "traefik.http.routers.kibana.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.kibana.loadbalancer.server.port=5601"
+  #     - "traefik.http.routers.kibana.service=kibana"
+
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   networks:
+  #     - media_net
+
+  # elasticsearch:
+  #   container_name: elasticsearch
+  #   image: elasticsearch:7.10.1
+  #   restart: always
+  #   labels:
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     discovery.type: single-node
+  #   networks:
+  #     - media_net
+
+  # metricbeat:
+  #   container_name: metricbeat
+  #   image: docker.elastic.co/beats/metricbeat:7.10.1
+  #   restart: always
+  #   labels:
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     setup.kibana.host: kibana:5601
+  #     output.elasticsearch.hosts: elasticsearch:9200
+  #     metricbeat.modules.module: docker
+  #     metricbeat.modules.module.metricsets: |
+  #       - "container"
+  #       - "cpu"
+  #       - "diskio"
+  #       - "healthcheck"
+  #       - "info"
+  #       - "memory"
+  #       - "network"
+  #   volumes:
+  #     # - $PWD/config/elk/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - /:/hostfs:ro
+  #     - /proc:/hostfs/proc:ro
+  #     - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+  #   networks:
+  #     - media_net
+
+  # logstash:
+  #   container_name: logstash
+  #   image: logstash:7.10.1
+  #   restart: always
+  #   command: setup
+  #   labels:
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     setup.kibana.host: test:5601
+  #     output.elasticsearch.hosts: elasticsearch:9200
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - /:/hostfs:ro
+  #     - /proc:/hostfs/proc:ro
+  #     - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+  #   networks:
+  #     - media_net
+
+  # Utilities
   cloudflare-companion:
     image: tiredofit/traefik-cloudflare-companion
     container_name: cloudflare
