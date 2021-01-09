@@ -26,6 +26,7 @@ services:
       # Watchtower automated update label
       - "com.centurylinklabs.watchtower.enable=true"
     command:
+      - "--ping"
       - "--log.level=INFO"
       - "--api.dashboard=true"
       - "--providers.docker=true"
@@ -41,6 +42,11 @@ services:
     volumes:
       - $APPDATA/traefik:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "traefik healthcheck --ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - media_net
 
