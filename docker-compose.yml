@@ -527,10 +527,6 @@ services:
     networks:
       - media_net
 
-volumes:
-  elasticsearch:
-    name: elasticsearch
-
 networks:
   media_net:
     name: mediacenter_net
