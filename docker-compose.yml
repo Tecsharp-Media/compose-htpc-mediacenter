@@ -99,6 +99,8 @@ services:
     container_name: plex
     image: ghcr.io/linuxserver/plex
     restart: always
+    devices:
+      - /dev/dri:/dev/dri
     ports:
       - 32400:32400/tcp
       - 3005:3005/tcp
@@ -272,6 +274,7 @@ services:
     volumes:
       - $APPDATA/sonarr:/config
       - $MEDIA/tvshows:/data/media/tv
+      - $MEDIA/kids-tvshows:/data/media/kids-tvshows
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
       - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
     networks:
@@ -304,6 +307,7 @@ services:
     volumes:
       - $APPDATA/radarr:/config
       - $MEDIA/movies:/data/media/movies
+      - $MEDIA/kids-movies:/data/media/kids-movies
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
       - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
     networks:
@@ -533,6 +537,65 @@ services:
     networks:
       - media_net
 
+  tdarr:
+    container_name: tdarr
+    image: haveagitgat/tdarr
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.tdarr.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+      # Main domain
+      - "traefik.http.routers.tdarr.rule=Host(`$TDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.tdarr.entrypoints=websecure"
+      - "traefik.http.routers.tdarr.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.tdarr.loadbalancer.server.port=8265"
+      - "traefik.http.routers.tdarr.service=tdarr"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - $APPDATA/tdarr/config:/home/Tdarr/Documents/Tdarr
+      - $APPDATA/tdarr/data:/var/lib/mongodb
+      - $MEDIA:/data/media
+      - $TRANSCODING:/temp
+    networks:
+      - media_net
+
 networks:
   media_net:
     name: mediacenter_net
+
+  # overseerr:
+  #   container_name: overseerr
+  #   image: hotio/overseerr
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
+
+  #     # Auth middleware
+  #     - "traefik.http.routers.overseerr.middlewares=auth-admin"
+  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+  #     # Main domain
+  #     - "traefik.http.routers.overseerr.rule=Host(`$OVERSEERR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.overseerr.entrypoints=websecure"
+  #     - "traefik.http.routers.overseerr.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.overseerr.loadbalancer.server.port=5055"
+  #     - "traefik.http.routers.overseerr.service=overseerr"
+
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     PGID: $PGID
+  #     PUID: $PUID
+  #     DEBUG: "yes"
+  #   volumes:
+  #     - $APPDATA/overseerr:/config
+  #   networks:
+  #     - media_net
