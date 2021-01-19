@@ -563,6 +563,11 @@ services:
       - $APPDATA/tdarr/data:/var/lib/mongodb
       - $MEDIA:/data/media
       - $TRANSCODING:/temp
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "20G"
     networks:
       - media_net
 
