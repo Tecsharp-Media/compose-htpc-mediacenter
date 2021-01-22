@@ -135,31 +135,31 @@ services:
     networks:
       - media_net
 
-  emby:
-    container_name: emby
-    image: emby/embyserver
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
+  # emby:
+  #   container_name: emby
+  #   image: emby/embyserver
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
 
-      # Main domain
-      - "traefik.http.routers.emby.rule=Host(`$EMBY_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.emby.entrypoints=websecure"
-      - "traefik.http.routers.emby.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.emby.loadbalancer.server.port=8096"
-      - "traefik.http.routers.emby.service=emby"
+  #     # Main domain
+  #     - "traefik.http.routers.emby.rule=Host(`$EMBY_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.emby.entrypoints=websecure"
+  #     - "traefik.http.routers.emby.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.emby.loadbalancer.server.port=8096"
+  #     - "traefik.http.routers.emby.service=emby"
 
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      GID: $PGID
-      UID: $PUID
-    volumes:
-      - $APPDATA/emby:/config
-      - $MEDIA:/data/media
-    networks:
-      - media_net
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     GID: $PGID
+  #     UID: $PUID
+  #   volumes:
+  #     - $APPDATA/emby:/config
+  #     - $MEDIA:/data/media
+  #   networks:
+  #     - media_net
 
   jellyfin:
     container_name: jellyfin
@@ -168,9 +168,8 @@ services:
     restart: always
     ports:
       - 8096:8096
-    # devices:
-    #   - /dev/dri/renderD128:/dev/dri/renderD128
-    #   - /dev/dri/card0:/dev/dri/card0
+    devices:
+      - /dev/dri:/dev/dri
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
@@ -537,40 +536,6 @@ services:
     networks:
       - media_net
 
-  tdarr:
-    container_name: tdarr
-    image: haveagitgat/tdarr
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
-
-      # Auth middleware
-      - "traefik.http.routers.tdarr.middlewares=auth-admin"
-      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
-
-      # Main domain
-      - "traefik.http.routers.tdarr.rule=Host(`$TDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.tdarr.entrypoints=websecure"
-      - "traefik.http.routers.tdarr.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.tdarr.loadbalancer.server.port=8265"
-      - "traefik.http.routers.tdarr.service=tdarr"
-
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    volumes:
-      - $APPDATA/tdarr/config:/home/Tdarr/Documents/Tdarr
-      - $APPDATA/tdarr/data:/var/lib/mongodb
-      - $MEDIA:/data/media
-      - $TRANSCODING:/temp
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"
-          memory: "20G"
-    networks:
-      - media_net
-
 networks:
   media_net:
     name: mediacenter_net
@@ -602,5 +567,39 @@ networks:
   #     DEBUG: "yes"
   #   volumes:
   #     - $APPDATA/overseerr:/config
+  #   networks:
+  #     - media_net
+
+  # tdarr:
+  #   container_name: tdarr
+  #   image: haveagitgat/tdarr
+  #   restart: always
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
+
+  #     # Auth middleware
+  #     - "traefik.http.routers.tdarr.middlewares=auth-admin"
+  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+  #     # Main domain
+  #     - "traefik.http.routers.tdarr.rule=Host(`$TDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.tdarr.entrypoints=websecure"
+  #     - "traefik.http.routers.tdarr.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.tdarr.loadbalancer.server.port=8265"
+  #     - "traefik.http.routers.tdarr.service=tdarr"
+
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   volumes:
+  #     - $APPDATA/tdarr/config:/home/Tdarr/Documents/Tdarr
+  #     - $APPDATA/tdarr/data:/var/lib/mongodb
+  #     - $MEDIA:/data/media
+  #     - $TRANSCODING:/temp
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: "2.0"
+  #         memory: "20G"
   #   networks:
   #     - media_net
