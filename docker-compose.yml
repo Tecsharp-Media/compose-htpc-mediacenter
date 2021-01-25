@@ -97,7 +97,7 @@ services:
 
   plex:
     container_name: plex
-    image: ghcr.io/linuxserver/plex
+    image: linuxserver/plex
     restart: always
     devices:
       - /dev/dri:/dev/dri
@@ -132,96 +132,48 @@ services:
     volumes:
       - $APPDATA/plex:/config
       - $MEDIA:/data/media
+    # I do this so plex will always come up with the same ip-address
     networks:
-      - media_net
+      media_net:
+        ipv4_address: 10.5.0.254
 
-  # emby:
-  #   container_name: emby
-  #   image: emby/embyserver
+  # jellyfin:
+  #   container_name: jellyfin
+  #   image: hotio/jellyfin
+
   #   restart: always
+  #   ports:
+  #     - 8096:8096
+  #   devices:
+  #     - /dev/dri:/dev/dri
   #   labels:
   #     - "traefik.enable=true"
   #     - "traefik.docker.network=mediacenter_net"
 
   #     # Main domain
-  #     - "traefik.http.routers.emby.rule=Host(`$EMBY_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.emby.entrypoints=websecure"
-  #     - "traefik.http.routers.emby.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.emby.loadbalancer.server.port=8096"
-  #     - "traefik.http.routers.emby.service=emby"
+  #     - "traefik.http.routers.jellyfin.rule=Host(`$JELLYFIN_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.jellyfin.entrypoints=websecure"
+  #     - "traefik.http.routers.jellyfin.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+  #     - "traefik.http.routers.jellyfin.service=jellyfin"
 
   #     # Watchtower automated update label
   #     - "com.centurylinklabs.watchtower.enable=true"
   #   environment:
-  #     GID: $PGID
-  #     UID: $PUID
-  #   volumes:
-  #     - $APPDATA/emby:/config
-  #     - $MEDIA:/data/media
-  #   networks:
-  #     - media_net
-
-  jellyfin:
-    container_name: jellyfin
-    image: hotio/jellyfin
-
-    restart: always
-    ports:
-      - 8096:8096
-    devices:
-      - /dev/dri:/dev/dri
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
-
-      # Main domain
-      - "traefik.http.routers.jellyfin.rule=Host(`$JELLYFIN_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.jellyfin.entrypoints=websecure"
-      - "traefik.http.routers.jellyfin.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
-      - "traefik.http.routers.jellyfin.service=jellyfin"
-
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      TZ: $TIMEZONE
-      PGID: $PGID
-      PUID: $PUID
-      DEBUG: "yes"
-    volumes:
-      - $APPDATA/jellyfin:/config
-      - $MEDIA:/data/media
-    networks:
-      - media_net
-
-  # airsonic:
-  #   container_name: airsonic
-  #   image: linuxserver/airsonic
-  #   restart: always
-  #   labels:
-  #     - "traefik.enable=true"
-
-  #     - "traefik.http.routers.airsonic.rule=Host(`$AIRSONIC_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.airsonic.entrypoints=websecure"
-  #     - "traefik.http.routers.airsonic.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.airsonic.loadbalancer.server.port=4040"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
+  #     TZ: $TIMEZONE
   #     PGID: $PGID
   #     PUID: $PUID
-  #     JAVA_OPTS: -Dserver.use-forward-headers=true
+  #     DEBUG: "yes"
   #   volumes:
-  #     - $APPDATA/airsonic:/config
-  #     - $MEDIA/music:/data/media/music
+  #     - $APPDATA/jellyfin:/config
+  #     - $MEDIA:/data/media
   #   networks:
   #     - media_net
 
   # Currently not working with jellyfin?
   ombi:
     container_name: ombi
-    image: hotio/ombi
+    image: linuxserver/ombi
     restart: always
     labels:
       - "traefik.enable=true"
@@ -231,15 +183,15 @@ services:
       - "traefik.http.routers.ombi.rule=Host(`$OMBI_DOMAIN.$DOMAIN`)"
       - "traefik.http.routers.ombi.entrypoints=websecure"
       - "traefik.http.routers.ombi.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.ombi.loadbalancer.server.port=5000"
+      - "traefik.http.services.ombi.loadbalancer.server.port=3579"
       - "traefik.http.routers.ombi.service=ombi"
 
       # Watchtower automated update label
       - "com.centurylinklabs.watchtower.enable=true"
     environment:
+      TZ: $TIMEZONE
       PGID: $PGID
       PUID: $PUID
-      DEBUG: "yes"
     volumes:
       - $APPDATA/ombi:/config
     networks:
@@ -248,8 +200,10 @@ services:
   # Indexers
   sonarr:
     container_name: sonarr
-    image: hotio/sonarr:nightly
+    image: mdhiggins/sonarr-sma:preview
     restart: always
+    devices:
+      - /dev/dri:/dev/dri
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
@@ -271,7 +225,8 @@ services:
       PGID: $PGID
       PUID: $PUID
     volumes:
-      - $APPDATA/sonarr:/config
+      - $APPDATA/sonarr/config:/config
+      - $APPDATA/sonarr/sma:/usr/local/sma/config
       - $MEDIA/tvshows:/data/media/tv
       - $MEDIA/kids-tvshows:/data/media/kids-tvshows
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
@@ -281,8 +236,10 @@ services:
 
   radarr:
     container_name: radarr
-    image: hotio/radarr
+    image: mdhiggins/radarr-sma:nightly
     restart: always
+    devices:
+      - /dev/dri:/dev/dri
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
@@ -304,7 +261,8 @@ services:
       PGID: $PGID
       PUID: $PUID
     volumes:
-      - $APPDATA/radarr:/config
+      - $APPDATA/radarr/config:/config
+      - $APPDATA/radarr/sma:/usr/local/sma/config
       - $MEDIA/movies:/data/media/movies
       - $MEDIA/kids-movies:/data/media/kids-movies
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
@@ -312,20 +270,24 @@ services:
     networks:
       - media_net
 
-  # lidarr:
-  #   container_name: lidarr
-  #   image: hotio/lidarr
+  # radarr:
+  #   container_name: radarr
+  #   image: hotio/radarr
   #   restart: always
   #   labels:
   #     - "traefik.enable=true"
   #     - "traefik.docker.network=mediacenter_net"
 
+  #     # Auth middleware
+  #     - "traefik.http.routers.radarr.middlewares=auth-admin"
+  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
   #     # Main domain
-  #     - "traefik.http.routers.lidarr.rule=Host(`$LIDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.lidarr.entrypoints=websecure"
-  #     - "traefik.http.routers.lidarr.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
-  #     - "traefik.http.routers.lidarr.service=lidarr"
+  #     - "traefik.http.routers.radarr.rule=Host(`$RADARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.radarr.entrypoints=websecure"
+  #     - "traefik.http.routers.radarr.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+  #     - "traefik.http.routers.radarr.service=radarr"
 
   #     # Watchtower automated update label
   #     - "com.centurylinklabs.watchtower.enable=true"
@@ -333,8 +295,9 @@ services:
   #     PGID: $PGID
   #     PUID: $PUID
   #   volumes:
-  #     - $APPDATA/lidarr:/config
-  #     - $MEDIA/music:/data/media/music
+  #     - $APPDATA/radarr:/config
+  #     - $MEDIA/movies:/data/media/movies
+  #     - $MEDIA/kids-movies:/data/media/kids-movies
   #     - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
   #     - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
   #   networks:
@@ -366,42 +329,42 @@ services:
   #   networks:
   #     - media_net
 
-  hydra2:
-    container_name: hydra2
-    image: hotio/nzbhydra2
-    restart: always
-    ports:
-      - 5076:5076
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mediacenter_net"
+  # hydra2:
+  #   container_name: hydra2
+  #   image: hotio/nzbhydra2
+  #   restart: always
+  #   ports:
+  #     - 5076:5076
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=mediacenter_net"
 
-      # Auth middleware
-      - "traefik.http.routers.hydra2.middlewares=auth-poweruser"
-      - "traefik.http.middlewares.auth-poweruser.forwardauth.address=http://organizr/api/v2/auth?group=3"
+  #     # Auth middleware
+  #     - "traefik.http.routers.hydra2.middlewares=auth-poweruser"
+  #     - "traefik.http.middlewares.auth-poweruser.forwardauth.address=http://organizr/api/v2/auth?group=3"
 
-      # Main domain
-      - "traefik.http.routers.hydra2.rule=Host(`$HYDRA2_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.hydra2.entrypoints=websecure"
-      - "traefik.http.routers.hydra2.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.hydra2.loadbalancer.server.port=5076"
-      - "traefik.http.routers.hydra2.service=hydra2"
+  #     # Main domain
+  #     - "traefik.http.routers.hydra2.rule=Host(`$HYDRA2_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+  #     - "traefik.http.routers.hydra2.entrypoints=websecure"
+  #     - "traefik.http.routers.hydra2.tls.certresolver=mytlschallenge"
+  #     - "traefik.http.services.hydra2.loadbalancer.server.port=5076"
+  #     - "traefik.http.routers.hydra2.service=hydra2"
 
-      # Watchtower automated update label
-      - "com.centurylinklabs.watchtower.enable=true"
-    environment:
-      PGID: $PGID
-      PUID: $PUID
-      DEBUG: "yes"
-    volumes:
-      - $APPDATA/hydra2:/config
-    networks:
-      - media_net
+  #     # Watchtower automated update label
+  #     - "com.centurylinklabs.watchtower.enable=true"
+  #   environment:
+  #     PGID: $PGID
+  #     PUID: $PUID
+  #     DEBUG: "yes"
+  #   volumes:
+  #     - $APPDATA/hydra2:/config
+  #   networks:
+  #     - media_net
 
   # Downloaders
   nzbget:
     container_name: nzbget
-    image: hotio/nzbget
+    image: linuxserver/nzbget
     restart: always
     labels:
       - "traefik.enable=true"
@@ -474,7 +437,7 @@ services:
   # Metrics
   tautulli:
     container_name: tautulli
-    image: hotio/tautulli
+    image: linuxserver/tautulli
     restart: always
     labels:
       - "traefik.enable=true"
@@ -539,67 +502,8 @@ services:
 networks:
   media_net:
     name: mediacenter_net
-
-  # overseerr:
-  #   container_name: overseerr
-  #   image: hotio/overseerr
-  #   restart: always
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     # Auth middleware
-  #     - "traefik.http.routers.overseerr.middlewares=auth-admin"
-  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
-
-  #     # Main domain
-  #     - "traefik.http.routers.overseerr.rule=Host(`$OVERSEERR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.overseerr.entrypoints=websecure"
-  #     - "traefik.http.routers.overseerr.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.overseerr.loadbalancer.server.port=5055"
-  #     - "traefik.http.routers.overseerr.service=overseerr"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
-  #     PGID: $PGID
-  #     PUID: $PUID
-  #     DEBUG: "yes"
-  #   volumes:
-  #     - $APPDATA/overseerr:/config
-  #   networks:
-  #     - media_net
-
-  # tdarr:
-  #   container_name: tdarr
-  #   image: haveagitgat/tdarr
-  #   restart: always
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     # Auth middleware
-  #     - "traefik.http.routers.tdarr.middlewares=auth-admin"
-  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
-
-  #     # Main domain
-  #     - "traefik.http.routers.tdarr.rule=Host(`$TDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.tdarr.entrypoints=websecure"
-  #     - "traefik.http.routers.tdarr.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.tdarr.loadbalancer.server.port=8265"
-  #     - "traefik.http.routers.tdarr.service=tdarr"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   volumes:
-  #     - $APPDATA/tdarr/config:/home/Tdarr/Documents/Tdarr
-  #     - $APPDATA/tdarr/data:/var/lib/mongodb
-  #     - $MEDIA:/data/media
-  #     - $TRANSCODING:/temp
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: "2.0"
-  #         memory: "20G"
-  #   networks:
-  #     - media_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
