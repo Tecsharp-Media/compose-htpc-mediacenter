@@ -246,64 +246,6 @@ services:
     networks:
       - media_net
 
-  # Api bypass not working yet
-  # jackett:
-  #   container_name: jackett
-  #   image: hotio/jackett
-  #   restart: always
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     # Main domain
-  #     - "traefik.http.routers.jackett.rule=Host(`$JACKETT_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.jackett.entrypoints=websecure"
-  #     - "traefik.http.routers.jackett.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.jackett.loadbalancer.server.port=9117"
-  #     - "traefik.http.routers.jackett.service=jackett"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
-  #     PGID: $PGID
-  #     PUID: $PUID
-  #   volumes:
-  #     - $APPDATA/jackett:/config
-  #   networks:
-  #     - media_net
-
-  # hydra2:
-  #   container_name: hydra2
-  #   image: hotio/nzbhydra2
-  #   restart: always
-  #   ports:
-  #     - 5076:5076
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     # Auth middleware
-  #     - "traefik.http.routers.hydra2.middlewares=auth-poweruser"
-  #     - "traefik.http.middlewares.auth-poweruser.forwardauth.address=http://organizr/api/v2/auth?group=3"
-
-  #     # Main domain
-  #     - "traefik.http.routers.hydra2.rule=Host(`$HYDRA2_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.hydra2.entrypoints=websecure"
-  #     - "traefik.http.routers.hydra2.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.hydra2.loadbalancer.server.port=5076"
-  #     - "traefik.http.routers.hydra2.service=hydra2"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
-  #     PGID: $PGID
-  #     PUID: $PUID
-  #     DEBUG: "yes"
-  #   volumes:
-  #     - $APPDATA/hydra2:/config
-  #   networks:
-  #     - media_net
-
   # Downloaders
   nzbget:
     container_name: nzbget
@@ -337,46 +279,6 @@ services:
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
     networks:
       - media_net
-
-  # deluge:
-  #   container_name: deluge
-  #   image: binhex/arch-delugevpn
-  #   restart: always
-  #   cap_add:
-  #     - NET_ADMIN
-  #   ports:
-  #     - "58846:58846"
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     - "traefik.http.routers.deluge.rule=Host(`$DELUGE_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.deluge.entrypoints=websecure"
-  #     - "traefik.http.routers.deluge.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.deluge.loadbalancer.server.port=8112"
-
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
-  #     PGID: $PGID
-  #     PUID: $PUID
-  #     VPN_ENABLED: "yes"
-  #     VPN_USER: $VPN_USERNAME
-  #     VPN_PASS: $VPN_PASSWORD
-  #     VPN_PROV: pia
-  #     STRICT_PORT_FORWARD: "yes"
-  #     ENABLE_PRIVOXY: "no"
-  #     LAN_NETWORK: 192.168.0.0/24
-  #     NAME_SERVERS: 209.222.18.222,84.200.69.80,37.235.1.174,1.1.1.1,209.222.18.218,37.235.1.177,84.200.70.40,1.0.0.1
-  #     DELUGE_DAEMON_LOG_LEVEL: debug
-  #     DELUGE_WEB_LOG_LEVEL: debug
-  #     DEBUG: "true"
-  #     UMASK: 000
-  #   volumes:
-  #     - /etc/localtime:/etc/localtime:ro
-  #     - $APPDATA/deluge:/config
-  #     - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
-  #   networks:
-  #     - media_net
 
   # Metrics
   tautulli:
@@ -487,8 +389,8 @@ services:
         ipv4_address: 10.5.0.252
 
   radarr-collections:
-    image: si0972/radarr-collections
     container_name: radarr-collections
+    image: si0972/radarr-collections
     restart: always
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
@@ -502,8 +404,8 @@ services:
       - media_net
 
   cloudflare-companion:
-    image: tiredofit/traefik-cloudflare-companion
     container_name: cloudflare
+    image: tiredofit/traefik-cloudflare-companion
     restart: always
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
@@ -520,14 +422,14 @@ services:
       - media_net
 
   watchtower:
-    image: containrrr/watchtower
     container_name: watchtower
+    image: containrrr/watchtower
     restart: always
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    command:
-      - --label-enable
-      - --cleanup
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
