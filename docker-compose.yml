@@ -51,7 +51,7 @@ services:
       - media_net
 
   errorpage:
-    container_name: error
+    container_name: traefik-custom-error
     image: guillaumebriday/traefik-custom-error-pages
     restart: always
     labels:
@@ -89,7 +89,8 @@ services:
     environment:
       PGID: $PGID
       PUID: $PUID
-      branch: v2-master
+      fpm: "false"
+      branch: v2-develop
     volumes:
       - $APPDATA/organizr:/config
     networks:
@@ -99,8 +100,9 @@ services:
     container_name: plex
     image: linuxserver/plex
     restart: always
+    runtime: nvidia
     devices:
-      - /dev/dri:/dev/dri
+      - /dev/dri/card0:/dev/dri/card0
     ports:
       - 32400:32400/tcp
       - 3005:3005/tcp
@@ -129,62 +131,34 @@ services:
       PGID: $PGID
       PUID: $PUID
       PLEX_CLAIM: $PLEX_CLAIM
+      NVIDIA_VISIBLE_DEVICES: all
     volumes:
-      - $APPDATA/plex:/config
+      - $APPDATA/plex/server:/config
       - $MEDIA:/data/media
+      - $TRANSCODING/plex:/transcoding
     # I do this so plex will always come up with the same ip-address
     networks:
       media_net:
         ipv4_address: 10.5.0.254
 
-  # jellyfin:
-  #   container_name: jellyfin
-  #   image: hotio/jellyfin
-
-  #   restart: always
-  #   ports:
-  #     - 8096:8096
-  #   devices:
-  #     - /dev/dri:/dev/dri
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     # Main domain
-  #     - "traefik.http.routers.jellyfin.rule=Host(`$JELLYFIN_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.jellyfin.entrypoints=websecure"
-  #     - "traefik.http.routers.jellyfin.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
-  #     - "traefik.http.routers.jellyfin.service=jellyfin"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
-  #     TZ: $TIMEZONE
-  #     PGID: $PGID
-  #     PUID: $PUID
-  #     DEBUG: "yes"
-  #   volumes:
-  #     - $APPDATA/jellyfin:/config
-  #     - $MEDIA:/data/media
-  #   networks:
-  #     - media_net
-
-  # Currently not working with jellyfin?
-  ombi:
-    container_name: ombi
-    image: linuxserver/ombi
+  overseerr:
+    container_name: overseerr
+    image: hotio/overseerr
     restart: always
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mediacenter_net"
 
+      # Auth middleware
+      - "traefik.http.routers.overseerr.middlewares=auth-user"
+      - "traefik.http.middlewares.auth-user.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
       # Main domain
-      - "traefik.http.routers.ombi.rule=Host(`$OMBI_DOMAIN.$DOMAIN`)"
-      - "traefik.http.routers.ombi.entrypoints=websecure"
-      - "traefik.http.routers.ombi.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.ombi.loadbalancer.server.port=3579"
-      - "traefik.http.routers.ombi.service=ombi"
+      - "traefik.http.routers.overseerr.rule=Host(`$OVERSEERR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.overseerr.entrypoints=websecure"
+      - "traefik.http.routers.overseerr.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.overseerr.loadbalancer.server.port=5055"
+      - "traefik.http.routers.overseerr.service=overseerr"
 
       # Watchtower automated update label
       - "com.centurylinklabs.watchtower.enable=true"
@@ -193,14 +167,14 @@ services:
       PGID: $PGID
       PUID: $PUID
     volumes:
-      - $APPDATA/ombi:/config
+      - $APPDATA/overseerr:/config
     networks:
       - media_net
 
   # Indexers
   sonarr:
     container_name: sonarr
-    image: mdhiggins/sonarr-sma:preview
+    image: linuxserver/sonarr:preview
     restart: always
     devices:
       - /dev/dri:/dev/dri
@@ -224,9 +198,10 @@ services:
     environment:
       PGID: $PGID
       PUID: $PUID
+      DOCKER_MODS: "gilbn/theme.park:sonarr"
+      TP_THEME: plex
     volumes:
       - $APPDATA/sonarr/config:/config
-      - $APPDATA/sonarr/sma:/usr/local/sma/config
       - $MEDIA/tvshows:/data/media/tv
       - $MEDIA/kids-tvshows:/data/media/kids-tvshows
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
@@ -236,7 +211,7 @@ services:
 
   radarr:
     container_name: radarr
-    image: mdhiggins/radarr-sma:nightly
+    image: linuxserver/radarr:nightly
     restart: always
     devices:
       - /dev/dri:/dev/dri
@@ -260,9 +235,10 @@ services:
     environment:
       PGID: $PGID
       PUID: $PUID
+      DOCKER_MODS: "gilbn/theme.park:radarr"
+      TP_THEME: plex
     volumes:
       - $APPDATA/radarr/config:/config
-      - $APPDATA/radarr/sma:/usr/local/sma/config
       - $MEDIA/movies:/data/media/movies
       - $MEDIA/kids-movies:/data/media/kids-movies
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
@@ -270,40 +246,7 @@ services:
     networks:
       - media_net
 
-  # radarr:
-  #   container_name: radarr
-  #   image: hotio/radarr
-  #   restart: always
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=mediacenter_net"
-
-  #     # Auth middleware
-  #     - "traefik.http.routers.radarr.middlewares=auth-admin"
-  #     - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
-
-  #     # Main domain
-  #     - "traefik.http.routers.radarr.rule=Host(`$RADARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
-  #     - "traefik.http.routers.radarr.entrypoints=websecure"
-  #     - "traefik.http.routers.radarr.tls.certresolver=mytlschallenge"
-  #     - "traefik.http.services.radarr.loadbalancer.server.port=7878"
-  #     - "traefik.http.routers.radarr.service=radarr"
-
-  #     # Watchtower automated update label
-  #     - "com.centurylinklabs.watchtower.enable=true"
-  #   environment:
-  #     PGID: $PGID
-  #     PUID: $PUID
-  #   volumes:
-  #     - $APPDATA/radarr:/config
-  #     - $MEDIA/movies:/data/media/movies
-  #     - $MEDIA/kids-movies:/data/media/kids-movies
-  #     - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
-  #     - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
-  #   networks:
-  #     - media_net
-
-  # # Api bypass not working yet
+  # Api bypass not working yet
   # jackett:
   #   container_name: jackett
   #   image: hotio/jackett
@@ -387,7 +330,8 @@ services:
       PGID: $PGID
       PUID: $PUID
       TZ: $TIMEZONE
-      DEBUG: "no"
+      DOCKER_MODS: "gilbn/theme.park:radarr"
+      TP_THEME: plex
     volumes:
       - $APPDATA/nzbget:/config
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
@@ -460,13 +404,103 @@ services:
       TZ: $TIMEZONE
       PGID: $PGID
       PUID: $PUID
-      DEBUG: "no"
+      DOCKER_MODS: "gilbn/theme.park:radarr"
+      TP_THEME: plex
     volumes:
       - $APPDATA/tautulli:/config
     networks:
       - media_net
 
   # Utilities
+  tdarr:
+    container_name: tdarr
+    image: haveagitgat/tdarr:v2-preview
+    restart: always
+    ports:
+      - 8266:8266
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.tdarr.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+      # Main domain
+      - "traefik.http.routers.tdarr.rule=Host(`$TDARR_DOMAIN.$MEDIA_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.tdarr.entrypoints=websecure"
+      - "traefik.http.routers.tdarr.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.tdarr.loadbalancer.server.port=8265"
+      - "traefik.http.routers.tdarr.service=tdarr"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      TZ: $TIMEZONE
+      PGID: $PGID
+      PUID: $PUID
+      serverIP: "10.5.0.253"
+      serverPort: 8266
+      webUIPort: 8265
+    volumes:
+      - $APPDATA/tdarr:/app/server
+      - $MEDIA:/media
+      - $TRANSCODING/tdarr:/temp
+    # I do this so tdarr will always come up with the same ip-address
+    networks:
+      media_net:
+        ipv4_address: 10.5.0.253
+
+  tdarr_node:
+    container_name: tdarr-node
+    image: haveagitgat/tdarr_node:v2-preview
+    restart: always
+    runtime: nvidia
+    devices:
+      - /dev/dri/card0:/dev/dri/card0
+    labels:
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      TZ: $TIMEZONE
+      PGID: $PGID
+      PUID: $PUID
+      nodeID: mediacenter
+      nodeIP: "10.5.0.252"
+      serverIP: "10.5.0.253"
+      serverPort: 8266
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - $MEDIA:/media
+      - $TRANSCODING:/temp
+    deploy:
+      resources:
+        limits:
+          cpus: 6
+          # Give this bitch ALL THE RAM!
+          # Found that at even 20G it was still causing swapping
+          memory: 24576M
+    # I do this so tdarr node will always come up with the same ip-address
+    networks:
+      media_net:
+        ipv4_address: 10.5.0.252
+
+  radarr-collections:
+    image: si0972/radarr-collections
+    container_name: radarr-collections
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      PGID: $PGID
+      PUID: $PUID
+      args: -f
+    volumes:
+      - $APPDATA/radarr/collections:/config
+    networks:
+      - media_net
+
   cloudflare-companion:
     image: tiredofit/traefik-cloudflare-companion
     container_name: cloudflare
