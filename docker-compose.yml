@@ -202,7 +202,8 @@ services:
       TP_THEME: plex
     volumes:
       - $APPDATA/sonarr/config:/config
-      - $MEDIA/tvshows:/data/media/tv
+      - $MEDIA/tvshows:/data/media/tvshows
+      - $MEDIA/anime-tvshows:/data/media/anime-tvshows
       - $MEDIA/kids-tvshows:/data/media/kids-tvshows
       - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
       - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge

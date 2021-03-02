@@ -1,0 +1,83 @@
+version: "3.8"
+services:
+  # Metrics
+  grafana:
+    container_name: grafana
+    image: grafana/grafana
+    restart: always
+    user: $PUID
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mediacenter_net"
+
+      # Auth middleware
+      - "traefik.http.routers.grafana.middlewares=auth-admin"
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://organizr/api/v2/auth?group=1"
+
+      # Main domain
+      - "traefik.http.routers.grafana.rule=Host(`$GRAFANA_DOMAIN.$ADMIN_DOMAIN.$DOMAIN`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.service=grafana"
+
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - $APPDATA/grafana:/var/lib/grafana
+    networks:
+      - media_net
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus
+    restart: always
+    labels:
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - $PWD/config/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - media_net
+
+  node-exporter:
+    container_name: node-exporter
+    image: prom/node-exporter
+    restart: always
+    pid: host
+    command:
+      - "--path.rootfs=/host"
+    labels:
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - media_net
+
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: always
+    depends_on:
+      - redis
+    labels:
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - media_net
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    restart: always
+    labels:
+      # Watchtower automated update label
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - media_net
