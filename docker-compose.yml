@@ -205,7 +205,7 @@ services:
       - $MEDIA/tvshows:/data/media/tvshows
       - $MEDIA/anime-tvshows:/data/media/anime-tvshows
       - $MEDIA/kids-tvshows:/data/media/kids-tvshows
-      - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+      - $USENET_DOWNLOADS:/data/downloads
       - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
     networks:
       - media_net
@@ -242,7 +242,7 @@ services:
       - $APPDATA/radarr/config:/config
       - $MEDIA/movies:/data/media/movies
       - $MEDIA/kids-movies:/data/media/kids-movies
-      - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+      - $USENET_DOWNLOADS:/data/downloads
       - $TORRENT_DOWNLOADS/deluge:/data/downloads/deluge
     networks:
       - media_net
@@ -277,7 +277,7 @@ services:
       TP_THEME: plex
     volumes:
       - $APPDATA/nzbget:/config
-      - $USENET_DOWNLOADS/nzbget:/data/downloads/nzbget
+      - $USENET_DOWNLOADS:/data/downloads
     networks:
       - media_net
 
@@ -376,7 +376,7 @@ services:
       NVIDIA_VISIBLE_DEVICES: all
     volumes:
       - $MEDIA:/media
-      - $TRANSCODING:/temp
+      - $TRANSCODING/tdarr:/temp
     deploy:
       resources:
         limits:
